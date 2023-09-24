@@ -1,27 +1,62 @@
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import { useMutation } from "@tanstack/react-query";
+import { omit } from "lodash";
 
-import { getRules } from "src/utils/rules";
 import Input from "src/components/Input";
+import { Schema, schema } from "src/utils/rules";
+import { registerAccount } from "src/apis/auth.api";
+import { isAxiosUnprocessableEntityError } from "src/utils/utils";
+import { ResponseApi } from "src/types/utils.type";
 
-interface IFormData {
-  email: string;
-  password: string;
-  confirm_password: string;
-}
+type IFormData = Schema;
 
 const Register = () => {
   const {
     register,
     handleSubmit,
-    getValues,
+    setError,
     formState: { errors },
-  } = useForm<IFormData>();
+  } = useForm<IFormData>({
+    resolver: yupResolver(schema),
+  });
 
-  const rules = getRules(getValues);
+  const registerMutation = useMutation({
+    mutationFn: (body: Omit<IFormData, "confirm_password">) => {
+      return registerAccount(body);
+    },
+  });
 
   const onSubmit = handleSubmit((data) => {
-    console.log(data);
+    const body = omit(data, ["confirm_password"]);
+
+    registerMutation.mutate(body, {
+      onSuccess(data) {
+        console.log(data);
+      },
+      onError(error) {
+        if (
+          isAxiosUnprocessableEntityError<
+            ResponseApi<Omit<IFormData, "confirm_password">>
+          >(error)
+        ) {
+          const formError = error.response?.data.data;
+          if (formError?.email) {
+            setError("email", {
+              message: formError.email,
+              type: "Server",
+            });
+          }
+          if (formError?.password) {
+            setError("password", {
+              message: formError.password,
+              type: "Server",
+            });
+          }
+        }
+      },
+    });
   });
 
   return (
@@ -42,7 +77,6 @@ const Register = () => {
                 className="mt-8"
                 errorMessage={errors.email?.message}
                 placeholder="Email"
-                rules={rules.email}
               />
               <Input
                 name="password"
@@ -52,7 +86,6 @@ const Register = () => {
                 errorMessage={errors.password?.message}
                 placeholder="Password"
                 autoComplte="on"
-                rules={rules.password}
               />
               <Input
                 name="confirm_password"
@@ -62,7 +95,6 @@ const Register = () => {
                 errorMessage={errors.confirm_password?.message}
                 placeholder="Confirm Password"
                 autoComplte="on"
-                rules={rules.confirm_password}
               />
               <div className="mt-2">
                 <button className="w-full text-center py-4 px-2 uppercase bg-red-500 text-white text-sm hover:bg-red-600">

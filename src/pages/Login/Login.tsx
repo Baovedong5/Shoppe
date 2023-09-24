@@ -1,15 +1,57 @@
+import { yupResolver } from "@hookform/resolvers/yup";
+import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
+
+import { loginAccount } from "src/apis/auth.api";
+import Input from "src/components/Input";
+import { ResponseApi } from "src/types/utils.type";
+import { Schema, schema } from "src/utils/rules";
+import { isAxiosUnprocessableEntityError } from "src/utils/utils";
+
+type IFormData = Omit<Schema, "confirm_password">;
+
+const loginSchema = schema.pick(["email", "password"]);
 
 const Login = () => {
   const {
     register,
+    setError,
     handleSubmit,
     formState: { errors },
-  } = useForm();
+  } = useForm<IFormData>({
+    resolver: yupResolver(loginSchema),
+  });
+
+  const loginMutation = useMutation({
+    mutationFn: (body: IFormData) => {
+      return loginAccount(body);
+    },
+  });
 
   const onSubmit = handleSubmit((data) => {
-    console.log(data);
+    loginMutation.mutate(data, {
+      onSuccess(data) {
+        console.log(data);
+      },
+      onError(error) {
+        if (isAxiosUnprocessableEntityError<ResponseApi<IFormData>>(error)) {
+          const formError = error.response?.data.data;
+          if (formError?.email) {
+            setError("email", {
+              message: formError.email,
+              type: "Server",
+            });
+          }
+          if (formError?.password) {
+            setError("password", {
+              message: formError.password,
+              type: "Server",
+            });
+          }
+        }
+      },
+    });
   });
 
   return (
@@ -23,26 +65,24 @@ const Login = () => {
               noValidate
             >
               <div className="text-2xl">Đăng nhập</div>
-              <div className="mt-8">
-                <input
-                  type="email"
-                  name="email"
-                  className="p-3 w-full outline-none border border-gray-300 focus:border-gray-500 rounded-sm focus:shadow-sm"
-                  placeholder="Email"
-                />
-                <div className="mt-1 text-red-600 min-h-[1rem] text-sm"></div>
-              </div>
-              <div className="mt-3">
-                <input
-                  type="password"
-                  name="password"
-                  className="p-3 w-full outline-none border border-gray-300 focus:border-gray-500 rounded-sm focus:shadow-sm"
-                  placeholder="Password"
-                  autoComplete="on"
-                />
-                <div className="mt-1 text-red-600 min-h-[1rem] text-sm"></div>
-              </div>
-              <div className="mt-3">
+              <Input
+                name="email"
+                register={register}
+                type="email"
+                className="mt-8"
+                errorMessage={errors.email?.message}
+                placeholder="Email"
+              />
+              <Input
+                name="password"
+                register={register}
+                type="password"
+                className="mt-2"
+                errorMessage={errors.password?.message}
+                placeholder="Password"
+                autoComplte="on"
+              />
+              <div className="mt-2">
                 <button className="w-full text-center py-4 px-2 uppercase bg-red-500 text-white text-sm hover:bg-red-600">
                   Đăng nhập
                 </button>
